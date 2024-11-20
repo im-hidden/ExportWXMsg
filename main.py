@@ -7,6 +7,8 @@ from export_excel import *
 import pymem.process
 from pymem import Pymem
 import shutil
+import win32com.shell.shell as shell
+import win32com.shell.shellcon as shellcon
 
 
 def check_key():
@@ -43,15 +45,15 @@ def get_key():
             file.write(key)
     except pymem.exception.ProcessNotFound:
         print("微信未登录")
-        input("按任意键退出...")
+        # input("按任意键退出...")
         exit(0)
     except pymem.exception.CouldNotOpenProcess:
         print("权限不足")
-        input("按任意键退出...")
+        # input("按任意键退出...")
         exit(0)
     except Exception as e:
         print(e)
-        input("按任意键退出...")
+        # input("按任意键退出...")
         exit(0)
 
 
@@ -65,7 +67,11 @@ def get_wx_location():
 
     # 读取文件将路径放到wx_location变量里
     if f == 'MyDocument:':
-        wx_location = 'C:' + users + '\\Documents\\WeChat Files'
+        # 获取特定用户的个人文档文件夹路径
+        pidl = shell.SHGetSpecialFolderLocation(0, shellcon.CSIDL_PERSONAL)
+        my_documents_path = shell.SHGetPathFromIDList(pidl).decode('utf-8')
+
+        wx_location = my_documents_path + '\\WeChat Files'
     else:
         wx_location = f + "\\WeChat Files"
     return wx_location
@@ -73,14 +79,16 @@ def get_wx_location():
 
 def get_path_decrypt_merge():
     wx_location = get_wx_location()
+    if not os.path.isdir(wx_location):
+        print(f'文件夹不存在:{wx_location}')
+        exit(0)
 
     # 列出目录下所有文件夹
     for folder_name in os.listdir(wx_location):
         if os.path.isdir(os.path.join(wx_location, folder_name)):
             if 'All Users' in folder_name or 'Applet' in folder_name or 'WMPF' in folder_name:
                 continue
-            # elif 'wxid_' in folder_name:
-            elif folder_name == '222':
+            elif 'wxid_' in folder_name:
                 contact_path = os.path.join(wx_location, folder_name, 'Msg')
                 msg_path = os.path.join(wx_location, folder_name, 'Msg', 'Multi')
                 if not os.path.exists(contact_path) and not os.path.exists(msg_path):
@@ -192,47 +200,16 @@ if __name__ == '__main__':
     wxids = get_wxid()
 
     while True:
-        is_file = input('是否复制本地文件到当前路径?[复制后可在excel中超链接打开文件](y/n)')
-        if is_file == 'n':  # 不复制文件
-            # 导出为excel
-            for wx in wxids:  # 多个微信号,循环处理
-                try:
-                    all_data = get_data(wx)
-                except Exception as e:
-                    print('当前处理数据库非当前登录微信,跳过...', e)
-                    continue
-                deal_over_data = deal_data(all_data, wx)
-                write_excel(deal_over_data, wx)
-            break
-
-        elif is_file == 'y':  # 复制文件
-            for wx in wxids:  # 多个微信号,循环处理
-                try:
-                    all_data = get_data(wx)
-                except Exception as e:
-                    print('当前处理数据库非当前登录微信,跳过...', e)
-                    continue
-                print('正在复制本地文件到 .\\data\\files 目录下...')
-                for i in tqdm(range(len(all_data))):
-
-                    if all_data[i][8] == 49 and all_data[i][9] == 6:
-                        wx_location = os.path.join(get_wx_location(), wx)  # 已登录微信当前用户路径
-                        try:
-                            file_path = file(bytes(all_data[i][7]), bytes(all_data[i][10]), '.\\data\\files', wx,
-                                             wx_location)
-                            if file_path['file_path'] == '':
-                                all_data[i][3] = '文件未下载或已删除'
-                                continue
-                            all_data[i][3] = file_path['file_path']
-                        except Exception as e:
-                            all_data[i][3] = '文件解析失败'
-
-                deal_over_data = deal_data(all_data, wx)
-                write_excel(deal_over_data, wx)
-            break
-
-        else:
-            pass
+        # 导出为excel
+        for wx in wxids:  # 多个微信号,循环处理
+            try:
+                all_data = get_data(wx)
+            except Exception as e:
+                print('当前处理数据库非当前登录微信,跳过...', e)
+                continue
+            deal_over_data = deal_data(all_data, wx)
+            write_excel(deal_over_data, wx)
+        break
     remove_db(['.\\key.txt'])  # 删除db文件夹和key.txt文件
     remove_dir(['.\\db'])
-    input('导出完成,按任意建关闭...')
+    # input('导出完成,按任意建关闭...')
