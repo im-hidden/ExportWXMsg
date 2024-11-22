@@ -1,5 +1,3 @@
-import glob
-import json
 from script.get_wechat_key import Wechat
 from script.decrypt import decrypt
 from script.merge import merge_databases
@@ -86,50 +84,48 @@ def get_path_decrypt_merge():
         exit(0)
 
     # 列出目录下所有文件夹
-    for user_folder_name in os.listdir(wx_location):
-        if os.path.isdir(os.path.join(wx_location, user_folder_name)):
-            if 'All Users' in user_folder_name or 'Applet' in user_folder_name or 'WMPF' in user_folder_name:
+    for folder_name in os.listdir(wx_location):
+        if os.path.isdir(os.path.join(wx_location, folder_name)):
+            if 'All Users' in folder_name or 'Applet' in folder_name or 'WMPF' in folder_name:
                 continue
-            elif 'wxid_' in user_folder_name:
-                # dir_msg_path 原来是 contact_path
-                dir_msg_path = os.path.join(wx_location, user_folder_name, 'Msg')
-                # dir_multi_path 原来是 msg_path
-                dir_multi_path = os.path.join(wx_location, user_folder_name, 'Msg', 'Multi')
-                if not os.path.exists(dir_msg_path) and not os.path.exists(dir_multi_path):
-                    print(f'文件夹不存在:{dir_msg_path} {dir_multi_path}')
+            elif 'wxid_' in folder_name:
+                contact_path = os.path.join(wx_location, folder_name, 'Msg')
+                msg_path = os.path.join(wx_location, folder_name, 'Msg', 'Multi')
+                if not os.path.exists(contact_path) and not os.path.exists(msg_path):
+                    print(f'文件夹不存在:{contact_path} {msg_path}')
                     exit(0)
-                decrypt_db(dir_msg_path, dir_multi_path, user_folder_name)
+                decrypt_db(contact_path, msg_path, folder_name)
             else:
                 contact_path_input = input('未找到"wxid_"开头的目录,请手动输入文件夹名称:')
-                dir_msg_path = os.path.join(wx_location, contact_path_input, 'Msg')
-                dir_multi_path = os.path.join(wx_location, contact_path_input, 'Msg', 'Multi')
-                if not os.path.exists(dir_msg_path) and not os.path.exists(dir_multi_path):
-                    print(f'文件夹不存在:{dir_msg_path} {dir_multi_path}')
+                contact_path = os.path.join(wx_location, contact_path_input, 'Msg')
+                msg_path = os.path.join(wx_location, contact_path_input, 'Msg', 'Multi')
+                if not os.path.exists(contact_path) and not os.path.exists(msg_path):
+                    print(f'文件夹不存在:{contact_path} {msg_path}')
                     exit(0)
-                decrypt_db(dir_msg_path, dir_multi_path, contact_path_input)
+                decrypt_db(contact_path, msg_path, contact_path_input)
                 break
 
 
-def decrypt_db(dir_msg_path, dir_multi_path, user_folder_name):
+def decrypt_db(contact_path, msg_path, user_path):
     with open('key.txt', 'r') as f:
         key = f.read()
-    file_micromsg_path = dir_msg_path + '\\MicroMsg.db'
-    decrypt_user_folder = f'.\\db\\{user_folder_name}'
-    decrypt_micromsg_path = os.path.join(decrypt_user_folder, 'MicroMsg.db')
-    check_dir_file(decrypt_user_folder, decrypt_micromsg_path)  # 检测文件文件夹是否存在，不存在则创建
+    contact_micromsg_path = contact_path + '\\MicroMsg.db'
+    dir_path = f'.\\db\\{user_path}'
+    dir_micromsg_path = os.path.join(dir_path, 'MicroMsg.db')
+    check_dir_file(dir_path, dir_micromsg_path)  # 检测文件文件夹是否存在，不存在则创建
 
-    decrypt(key, file_micromsg_path, decrypt_micromsg_path)  # 解码数据库
-    msg_files = glob.glob(os.path.join(dir_multi_path, 'MSG*.db'))
-    for file_name in msg_files:
-        if os.path.isfile(file_name):
-            try:
-                msg_db_path = os.path.join(dir_multi_path, file_name)
-                check_dir_file(decrypt_user_folder, os.path.join(decrypt_user_folder, file_name))
-                decrypt(key, msg_db_path, os.path.join(decrypt_user_folder, file_name))
-            except Exception as e:
-                print(e)
+    decrypt(key, contact_micromsg_path, dir_micromsg_path)  # 解码数据库
+    for folder_name in os.listdir(msg_path):
+        if os.path.isfile(os.path.join(msg_path, folder_name)):
+            if len(folder_name) == 7:
+                try:
+                    msg_db_path = os.path.join(msg_path, folder_name)
+                    check_dir_file(dir_path, os.path.join(dir_path, folder_name))
+                    decrypt(key, msg_db_path, os.path.join(dir_path, folder_name))
+                except Exception as e:
+                    print(e)
     try:
-        merge_db(user_folder_name)  # 合并数据库
+        merge_db(user_path)  # 合并数据库
     except Exception as e:
         print('非当前登录微信数据库,无法合并,跳过...')
 
@@ -154,18 +150,18 @@ def read_all_files_in_directory(directory_path):
     return files_list
 
 
-def merge_db(user_folder):
-    source_databases = read_all_files_in_directory(f'db\\{user_folder}')
+def merge_db(user_path):
+    source_databases = read_all_files_in_directory(f'db\\{user_path}')
     # 源数据库文件列表
-    # source_databases = [f"db\\{user_folder}\\MSG1.db", f"db\\{user_folder}\\MSG2.db", f"db\\{user_folder}\\MSG3.db",
-    #                     f"db\\{user_folder}\\MSG4.db", f"db\\{user_folder}\\MSG5.db", f"db\\{user_folder}\\MicroMsg.db"]
+    # source_databases = [f"db\\{user_path}\\MSG1.db", f"db\\{user_path}\\MSG2.db", f"db\\{user_path}\\MSG3.db",
+    #                     f"db\\{user_path}\\MSG4.db", f"db\\{user_path}\\MSG5.db", f"db\\{user_path}\\MicroMsg.db"]
     # 目标数据库文件
-    target_database = f"db\\{user_folder}\\MSG.db"
+    target_database = f"db\\{user_path}\\MSG.db"
 
-    shutil.copy(f'db\\{user_folder}\\MSG0.db', target_database)  # 使用MSG0.db数据库文件作为模板
+    shutil.copy(f'db\\{user_path}\\MSG0.db', target_database)  # 使用MSG0.db数据库文件作为模板
     merge_databases([item for item in source_databases if 'MicroMsg.db' not in item and 'MSG0.db' not in item],
                     target_database)  # 合并数据库,列表推导式,排除MicroMsg.db、MSG0.db文件
-    merge_table(f"db\\{user_folder}\\MicroMsg.db", target_database, ['Contact', 'ChatRoom'])  # 将两个库文的表合成一个文件
+    merge_table(f"db\\{user_path}\\MicroMsg.db", target_database, ['Contact', 'ChatRoom'])  # 将两个库文的表合成一个文件
     # remove_db(source_databases)  # 删除文件
 
 
@@ -212,10 +208,8 @@ if __name__ == '__main__':
                 print('当前处理数据库非当前登录微信,跳过...', e)
                 continue
             deal_over_data = deal_data(all_data, wx)
-            # json_string = json.dumps(deal_over_data)
-            # print(json_string)
             write_excel(deal_over_data, wx)
         break
-    # remove_db(['.\\key.txt'])  # 删除db文件夹和key.txt文件
-    # remove_dir(['.\\db'])
+    remove_db(['.\\key.txt'])  # 删除db文件夹和key.txt文件
+    remove_dir(['.\\db'])
     # input('导出完成,按任意建关闭...')
